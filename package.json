@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc && copyfiles -u 1 src/docs/*/ dist/",
+    "build": "tsc && copyfiles -u 1 src/docs/**/* dist/",
     "start": "node dist/index.js",
     "create:superadmin": "ts-node src/scripts/createSuperAdmin.ts"
   },
