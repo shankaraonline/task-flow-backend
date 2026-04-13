@@ -1,0 +1,854 @@
+openapi: 3.0.3
+info:
+  title: TaskFlow API
+  version: 1.0.0
+  description: |
+    Backend API for TaskFlow task management system.
+
+    Key capabilities:
+    - Multi-tenant architecture
+    - Employee hierarchy levels
+    - Tenant-based data isolation
+    - Project & service management
+    - Task assignment and status tracking
+    - Pagination and filtering support
+
+servers:
+  - url: http://localhost:5000/api
+    description: Local development server
+
+tags:
+  - name: Auth
+  - name: Tenants
+  - name: Users
+  - name: Services
+  - name: Projects
+  - name: Tasks
+  - name: Notifications
+    description: In-app and push notifications
+  - name: Task Requests
+    description: Client task request APIs
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 100
+
+    Tenant:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        isActive:
+          type: boolean
+      required:
+        - name
+
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+        tenantId:
+          type: string
+        name:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, employee]
+        level:
+          type: integer
+        assignedProjectIds:
+          type: string
+        isArchived:
+          type: boolean
+
+    Service:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        tenantId:
+          type: string
+
+    Project:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        tenantId:
+          type: string
+        serviceIds:
+          type: array
+          items:
+            type: string
+
+    TaskEntry:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [gray, yellow, green, red]
+        employeeIds:
+          type: array
+          items:
+            type: string
+        serviceIds:
+          type: array
+          items:
+            type: string
+
+    Task:
+      type: object
+      properties:
+        projectId:
+          type: string
+        date:
+          type: string
+          example: "2026-04-10"
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskEntry"
+
+    Notification:
+      type: object
+      properties:
+        _id:
+          type: string
+        userId:
+          type: string
+        tenantId:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        type:
+          type: string
+          enum: [task, project, system]
+        read:
+          type: boolean
+        createdAt:
+          type: string
+          example: "2026-04-10T10:30:00Z"
+          
+    TaskRequest:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "665ab1f2d4c3"
+        tenantId:
+          type: string
+          example: "665ab1f2d4c3"
+        clientId:
+          type: string
+          example: "665ab1f2d4c3"
+        projectId:
+          type: string
+          example: "665ab1f2d4c3"
+        title:
+          type: string
+          example: "Add payment gateway"
+        description:
+          type: string
+          example: "Client wants Razorpay integration"
+        requiredBy:
+          type: string
+          format: date
+        comment:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - in_progress
+            - completed
+          example: pending
+        createdAt:
+          type: string
+          example: "2026-04-10T10:30:00Z"
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          example: password123
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+paths:
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate user
+      description: Authenticate user and return JWT token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        401:
+          description: Invalid credentials
+
+  /tenants:
+    post:
+      tags: [Tenants]
+      security:
+        - BearerAuth: []
+      summary: Create tenant
+      description: Create a new tenant organization.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: Acme Corp
+      responses:
+        201:
+          description: Tenant created
+        401:
+          description: Unauthorized
+
+    get:
+      tags: [Tenants]
+      security:
+        - BearerAuth: []
+      summary: Get tenants
+      responses:
+        200:
+          description: Tenant list returned
+  /tenants/{id}:
+    put:
+      tags: [Tenants]
+      security:
+        - BearerAuth: []
+      summary: Update or upsert tenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Tenant"
+      responses:
+        200:
+          description: Tenant updated
+
+    delete:
+      tags: [Tenants]
+      security:
+        - BearerAuth: []
+      summary: Archive tenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Tenant archived
+  /users:
+    post:
+      tags: [Users]
+      security:
+        - BearerAuth: []
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, username, password]
+              properties:
+                name:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, employee]
+                level:
+                  type: integer
+      responses:
+        201:
+          description: User created
+
+    get:
+      tags: [Users]
+      security:
+        - BearerAuth: []
+      summary: Get users
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: Paginated users
+
+  /users/employees:
+    get:
+      tags: [Users]
+      security:
+        - BearerAuth: []
+      summary: Get employees
+      responses:
+        200:
+          description: Employee list
+  /users/{id}:
+    put:
+      tags: [Users]
+      security:
+        - BearerAuth: []
+      summary: Update or upsert user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        200:
+          description: User updated
+
+    delete:
+      tags: [Users]
+      security:
+        - BearerAuth: []
+      summary: Archive user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: User archived
+  /services:
+    post:
+      tags: [Services]
+      security:
+        - BearerAuth: []
+      summary: Create service
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        201:
+          description: Service created
+
+    get:
+      tags: [Services]
+      security:
+        - BearerAuth: []
+      summary: Get services
+      responses:
+        200:
+          description: Service list
+  /services/{id}:
+    put:
+      tags: [Services]
+      security:
+        - BearerAuth: []
+      summary: Update or upsert service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Service"
+      responses:
+        200:
+          description: Service updated
+
+    delete:
+      tags: [Services]
+      security:
+        - BearerAuth: []
+      summary: Archive service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Service archived
+  /projects:
+    post:
+      tags: [Projects]
+      security:
+        - BearerAuth: []
+      summary: Create project
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                serviceIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        201:
+          description: Project created
+
+    get:
+      tags: [Projects]
+      security:
+        - BearerAuth: []
+      summary: Get projects
+      responses:
+        200:
+          description: Project list
+  /projects/{id}:
+    put:
+      tags: [Projects]
+      security:
+        - BearerAuth: []
+      summary: Update or upsert project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Project"
+      responses:
+        200:
+          description: Project updated
+
+    delete:
+      tags: [Projects]
+      security:
+        - BearerAuth: []
+      summary: Archive project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Project archived
+  /tasks:
+    get:
+      tags: [Tasks]
+      security:
+        - BearerAuth: []
+      summary: Get tasks
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Tasks fetched
+
+  /tasks/assign:
+    post:
+      tags: [Tasks]
+      security:
+        - BearerAuth: []
+      summary: Assign task
+      description: Assign task to employees with hierarchy validation.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId, date, title]
+              properties:
+                projectId:
+                  type: string
+                date:
+                  type: string
+                title:
+                  type: string
+                description:
+                  type: string
+                employeeIds:
+                  type: array
+                  items:
+                    type: string
+                serviceIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        201:
+          description: Task assigned
+
+  /tasks/status/{entryId}:
+    patch:
+      tags: [Tasks]
+      security:
+        - BearerAuth: []
+      summary: Update task status
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [gray, yellow, green, red]
+      responses:
+        200:
+          description: Status updated
+  /tasks/{id}:
+    put:
+      tags: [Tasks]
+      security:
+        - BearerAuth: []
+      summary: Update or upsert task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Task"
+      responses:
+        200:
+          description: Task updated
+
+    delete:
+      tags: [Tasks]
+      security:
+        - BearerAuth: []
+      summary: Archive task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Task archived
+  /notifications:
+    get:
+      tags: [Notifications]
+      security:
+        - BearerAuth: []
+      summary: Get user notifications
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Notification list returned
+
+    post:
+      tags: [Notifications]
+      security:
+        - BearerAuth: []
+      summary: Create in-app notification
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                title:
+                  type: string
+                message:
+                  type: string
+                type:
+                  type: string
+      responses:
+        200:
+          description: Notification created
+
+  /notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      security:
+        - BearerAuth: []
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Notification marked as read
+
+  /notifications/subscribe:
+    post:
+      tags: [Notifications]
+      security:
+        - BearerAuth: []
+      summary: Save push notification subscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        200:
+          description: Subscription saved
+      
+        /task-requests:
+    post:
+      tags: [Task Requests]
+      security:
+        - BearerAuth: []
+      summary: Client create task request
+      description: Client requests a new task for a project assigned to them.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskRequest"
+      responses:
+        200:
+          description: Task request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskRequest"
+  /notifications/{id}:
+    put:
+      tags: [Notifications]
+      security:
+        - BearerAuth: []
+      summary: Update notification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Notification"
+      responses:
+        200:
+          description: Notification updated
+
+    delete:
+      tags: [Notifications]
+      security:
+        - BearerAuth: []
+      summary: Archive notification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Notification archived
+  /task-requests/my-requests:
+    get:
+      tags: [Task Requests]
+      security:
+        - BearerAuth: []
+      summary: Get client task requests
+      description: Returns all task requests created by the authenticated client.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            example: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            example: 10
+      responses:
+        200:
+          description: Task requests fetched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TaskRequest"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+      /task-requests/{id}:
+    put:
+      tags: [Task Requests]
+      security:
+        - BearerAuth: []
+      summary: Update task request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskRequest"
+      responses:
+        200:
+          description: Task request updated
+
+    delete:
+      tags: [Task Requests]
+      security:
+        - BearerAuth: []
+      summary: Archive task request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Task request archived
