@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
+    "build": "tsc && copyfiles -u 1 src/docs/*/ dist/",
     "start": "node dist/index.js",
     "create:superadmin": "ts-node src/scripts/createSuperAdmin.ts"
   },
@@ -41,6 +41,7 @@
     "@types/swagger-ui-express": "^4.1.8",
     "@types/web-push": "^3.6.4",
     "@types/yamljs": "^0.2.34",
+    "copyfiles": "^2.4.1",
     "eslint": "^10.2.0",
     "prettier": "^3.8.1",
     "ts-node-dev": "^2.0.0",
